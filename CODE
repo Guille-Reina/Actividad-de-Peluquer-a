@@ -1,0 +1,178 @@
+ Clase Peluquero
+public class Peluquero implements Runnable {
+    private String nombre;
+    private GestorConcurrencia  gc;
+    private Random generador;
+    private int MAX_ESPERA_SEGS=5;
+    public Peluquero(GestorConcurrencia gc,String nombre){
+            this.nombre =nombre;
+            this.gc =gc;
+            this.generador =new Random();
+    }
+
+    public void esperarTiempoAzar(int max){
+            /* Se calculan unos milisegundos al azar*/
+            int msgs=(1+generador.nextInt(max))*1000;
+            try {
+                    Thread.currentThread().sleep(msgs);
+            } catch (InterruptedException e) {
+                    // TODO Auto-generated catch block
+                    e.printStackTrace();
+            }
+    }
+    public void run(){
+            while (true){
+            		
+                    int num_silla=this.gc.atenderAlgunCliente();
+                    if (num_silla==-1 ){
+                            /* Mientras no haya nadie a quien
+                             * atender, dormimos
+                             */
+                            esperarTiempoAzar(3);
+                    } else {
+                    	
+                    	System.out.println("Atendiendo sillas: "+ num_silla);
+                    	esperarTiempoAzar(3);
+                    	this.gc.liberarSilla(num_silla);
+                    }
+            }
+    }
+}
+
+Clase Cliente
+public class Cliente implements Runnable{
+    GestorConcurrencia gc;
+    public Cliente(GestorConcurrencia gc){
+            this.gc =gc;
+    }
+    public void run(){
+    	
+    	//Hay que añadir un codigo que haga que cuando no haya sillas libres, muestre que el cliente se marcha
+    		int SillasLibres = this.gc.getSillaLibre();
+    		if (SillasLibres == -1) {
+    			System.out.println("Hay 0 Sillas disponible: Se marcha el cliente");
+    			return;
+    		}
+    		System.out.println("Hay "+SillasLibres + " Sillas disponible: Se queda el cliente");
+            
+    }
+}
+Clase GestorConcurrencia
+public class GestorConcurrencia {
+    /* Vector que indica cuantas sillas hay y
+     * si están libres o no
+     */
+	//Creamos una variable para saber el maximo de sillas en total y lo enlazamos en el código
+    
+	private int MaxSillas;
+	private boolean[] sillasLibres;
+	
+//Esta nueva variable sirve para poder cuantificar la accion dl peluquero haciendo su trabajo
+	private int AtenderCliente = 0;
+    /* Indica si el cliente sentado en esa
+     * silla está atendido por un peluquero o no
+     */
+    private boolean[] clienteEstaAtendido;
+
+    GestorConcurrencia(int numSillas){
+            /*Construimos los vectores...*/
+    		MaxSillas=numSillas;
+            sillasLibres =new boolean[MaxSillas];
+            clienteEstaAtendido =new boolean[MaxSillas];
+            /* ... los inicializamos*/
+            for (int i=0; i<MaxSillas;i++){
+                    sillasLibres[i] =true;
+                    clienteEstaAtendido[i] =false;
+            }
+    }
+
+    /**
+     * Permite obtener una silla libre, usado por la
+     * clase Cliente para saber si puede sentarse
+     * en algún sitio o irse
+     * @return Devuelve el número de la primera silla
+     * que está libre o -1 si no hay ninguna
+     */
+    public synchronized int getSillaLibre(){
+    	int posSil = -1;
+            for (int e=0; e<MaxSillas; e++){
+                    /* Si está libre la silla ...*/
+                    if (sillasLibres[e]== true) {
+                            /* ...se marca como ocupada*/
+                            sillasLibres[e]=false;
+                            return e;
+                    }
+            }
+            /* Si llegamos aquí es que no había nada libre*/
+            return posSil;
+    }
+
+    public synchronized void liberarSilla(int e){
+        sillasLibres[e] =true;
+        clienteEstaAtendido[e] =false;
+
+}
+    public synchronized int atenderAlgunCliente(){
+    	//Aqui es donde se debe solucionar el problema fundamental del ejercicico, por lo tanto se de rescribir partes del código
+    	boolean terminar;
+    	terminar= false;
+            //Creams la varibale i para asi poder cuantificar las acciones que estamos haciendo sirviendo, reemplazando el codigo for (int i=0; i<sillasLibres.length; i++){
+    	int i = this.AtenderCliente;
+    	int e = -1;
+    	while(!terminar) {
+    			
+                    if (this.clienteEstaAtendido[i]==false && this.sillasLibres[i]==false){
+                           	this.clienteEstaAtendido[i]=true;
+                            this.AtenderCliente= (i+1) % MaxSillas;
+                            return i;
+                    }
+                    // Este codigo permite saber si el peluquero termina de corta el pelo
+                    i++;
+                    if (i==this.MaxSillas) {
+                    	i=0;
+                    }if (i==this.AtenderCliente) terminar= true;
+            }
+            return e;
+    }
+
+}
+
+Clase Lanzador
+public class Lanzador {
+
+        public static void main(String[] args) {
+
+                int MAX_PELUQUEROS =2;
+                int MAX_SILLAS =MAX_PELUQUEROS+1;
+                int MAX_CLIENTES =MAX_PELUQUEROS*10;
+                int MAX_ESPERA_SEGS = 3;
+                GestorConcurrencia gc;
+                gc=new GestorConcurrencia(MAX_SILLAS);
+
+                Thread[] vhPeluqueros =new Thread[MAX_PELUQUEROS];
+                for (int i=0; i<MAX_PELUQUEROS;i++){
+                        Peluquero b=new Peluquero(gc, "Peluquero "+i);
+                        Thread hilo=new Thread(b);
+                        vhPeluqueros[i]=hilo;
+                        hilo.start();
+                }
+
+                /* Generamos unos cuantos clientes
+                 * a intervalos aleatorios
+                 */
+                Random generador=new Random();
+                for (int i=0; i<MAX_CLIENTES; i++){
+                        Cliente c =new Cliente(gc);
+                        Thread hiloCliente =new Thread(c);
+                        hiloCliente.start();
+
+                        int msegs=generador.nextInt(3)*1000;
+                        try {
+                                Thread.sleep(msegs);
+                        } catch (InterruptedException e) {
+                                // TODO Auto-generated catch block
+                                e.printStackTrace();
+                        }
+                } /* Fin del for*/
+        }
+}
